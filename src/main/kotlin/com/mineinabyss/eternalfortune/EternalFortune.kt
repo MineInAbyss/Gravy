@@ -6,6 +6,7 @@ import com.mineinabyss.eternalfortune.extensions.removeGraveTextDisplay
 import com.mineinabyss.eternalfortune.extensions.textDisplayIDMap
 import com.mineinabyss.eternalfortune.listeners.GraveListener
 import com.mineinabyss.eternalfortune.listeners.PlayerListener
+import com.mineinabyss.eternalfortune.systems.graveTextSetter
 import com.mineinabyss.geary.addons.GearyPhase
 import com.mineinabyss.geary.autoscan.autoscan
 import com.mineinabyss.geary.modules.geary
@@ -34,6 +35,9 @@ class EternalFortune : JavaPlugin() {
 
         listeners(GraveListener(), PlayerListener())
 
+        geary.run {
+            graveTextSetter()
+        }
         geary {
             on(GearyPhase.ENABLE) {
                 if (!eternal.config.graveFurniture.isBlockyFurniture) {

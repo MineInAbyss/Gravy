@@ -4,14 +4,14 @@ import com.github.shynixn.mccoroutine.bukkit.launch
 import com.mineinabyss.eternalfortune.api.events.PlayerCreateGraveEvent
 import com.mineinabyss.eternalfortune.components.GraveOfflineNotice
 import com.mineinabyss.eternalfortune.eternal
+import com.mineinabyss.eternalfortune.extensions.*
 import com.mineinabyss.eternalfortune.extensions.EternalHelpers.spawnGrave
-import com.mineinabyss.eternalfortune.extensions.isGrave
-import com.mineinabyss.eternalfortune.extensions.playerGraves
-import com.mineinabyss.eternalfortune.extensions.sendGraveTextToNearbyPlayers
 import com.mineinabyss.geary.papermc.tracking.entities.events.GearyEntityAddToWorldEvent
 import com.mineinabyss.geary.papermc.tracking.entities.toGeary
 import com.mineinabyss.idofront.messaging.error
 import com.mineinabyss.idofront.textcomponents.miniMsg
+import io.papermc.paper.event.packet.PlayerChunkLoadEvent
+import io.papermc.paper.event.packet.PlayerChunkUnloadEvent
 import kotlinx.coroutines.delay
 import org.bukkit.entity.ItemDisplay
 import org.bukkit.event.EventHandler
@@ -52,8 +52,22 @@ class PlayerListener : Listener {
     }
 
     @EventHandler
+    fun PlayerChunkLoadEvent.onPlayerChunkLoad() {
+        chunk.entities.filterIsInstance<ItemDisplay>().forEach {
+            player.sendGraveText(it)
+        }
+    }
+
+    @EventHandler
+    fun PlayerChunkUnloadEvent.onPlayerChunkUnload() {
+        chunk.entities.filterIsInstance<ItemDisplay>().forEach {
+            player.removeGraveTextDisplay(it)
+        }
+    }
+
+    /*@EventHandler
     fun GearyEntityAddToWorldEvent.onGraveLoad() {
         val itemDisplay = entity as? ItemDisplay ?: return
         if (itemDisplay.isGrave) itemDisplay.sendGraveTextToNearbyPlayers()
-    }
+    }*/
 }

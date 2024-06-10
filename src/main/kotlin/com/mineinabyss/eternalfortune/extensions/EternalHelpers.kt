@@ -187,7 +187,7 @@ fun Player.sendGraveTextDisplay(baseEntity: ItemDisplay) {
     (this as CraftPlayer).handle.connection.send(textDisplayPacket)
     eternal.plugin.launch(eternal.plugin.asyncDispatcher) {
         do {
-            sendGraveText(baseEntity, entityId)
+            sendGraveText(baseEntity)
             delay(1.seconds)
             if (baseEntity.grave?.isExpired() == true) break
         } while (!baseEntity.isDead)
@@ -205,11 +205,16 @@ fun formatDuration(duration: Duration) = duration.toComponents { days, hours, mi
 fun convertTime(duration: Long) =
     formatDuration(Duration.convert((maxOf(duration - currentTime(), 0)).toDouble(), DurationUnit.SECONDS, DurationUnit.SECONDS).seconds)
 
-fun Player.sendGraveText(baseEntity: ItemDisplay, entityId: Int) {
+fun Player.sendGraveText(baseEntity: ItemDisplay) {
+    baseEntity.grave?.let { this.sendGraveText(baseEntity, it) }
+}
+
+fun Player.sendGraveText(baseEntity: ItemDisplay, grave: Grave) {
+    val entityId = textDisplayIDMap.computeIfAbsent(baseEntity.uniqueId) { Entity.nextEntityId() }
     val tagResolver = TagResolver.resolver(
-        TagResolver.resolver("player", Tag.inserting((baseEntity.grave?.graveOwner?.toOfflinePlayer()?.name ?: "").miniMsg())),
-        TagResolver.resolver("protection", Tag.inserting(convertTime(baseEntity.grave?.protectionTime ?: 0).miniMsg())),
-        TagResolver.resolver("expiration", Tag.inserting(convertTime(baseEntity.grave?.expirationTime ?: 0).miniMsg())),
+        TagResolver.resolver("player", Tag.inserting((grave.graveOwner.toOfflinePlayer().name ?: "").miniMsg())),
+        TagResolver.resolver("protection", Tag.inserting(convertTime(grave.protectionTime).miniMsg())),
+        TagResolver.resolver("expiration", Tag.inserting(convertTime(grave.expirationTime).miniMsg())),
     )
     val text = PaperAdventure.asVanilla(eternal.messages.GRAVE_TEXT.trimIndent().miniMsg(tagResolver)) ?: Component.empty()
 
@@ -235,6 +240,11 @@ fun removeGraveTextDisplay(entityId: Int) {
     textDisplayIDMap.entries.removeIf { it.value == entityId }
     val destroyPacket = ClientboundRemoveEntitiesPacket(IntList.of(entityId))
     Bukkit.getOnlinePlayers().filterIsInstance<CraftPlayer>().forEach { it.handle.connection.send(destroyPacket) }
+}
+
+fun Player.removeGraveTextDisplay(baseEntity: ItemDisplay) {
+    val entityId = textDisplayIDMap.computeIfAbsent(baseEntity.uniqueId) { Entity.nextEntityId() }
+    (this as CraftPlayer).handle.connection.send(ClientboundRemoveEntitiesPacket(IntList.of(entityId)))
 }
 
 fun OfflinePlayer.removeGraveFromPlayerGraves(baseEntity: ItemDisplay) {
