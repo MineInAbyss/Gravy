@@ -14,7 +14,3 @@ dependencies:
       required: true
       load: BEFORE
       join-classpath: true
-    ProtocolBurrito:
-      required: true
-      load: BEFORE
-      join-classpath: true

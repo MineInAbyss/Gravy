@@ -4,95 +4,82 @@ import com.mineinabyss.eternalfortune.components.PlayerGraves
 import com.mineinabyss.eternalfortune.extensions.*
 import com.mineinabyss.eternalfortune.extensions.EternalHelpers.spawnGrave
 import com.mineinabyss.geary.papermc.datastore.decode
-import com.mineinabyss.idofront.commands.arguments.offlinePlayerArg
-import com.mineinabyss.idofront.commands.arguments.playerArg
-import com.mineinabyss.idofront.commands.execution.IdofrontCommandExecutor
-import com.mineinabyss.idofront.commands.extensions.actions.playerAction
+import com.mineinabyss.idofront.commands.brigadier.commands
 import com.mineinabyss.idofront.messaging.error
 import com.mineinabyss.idofront.messaging.success
 import com.mineinabyss.idofront.nms.nbt.getOfflinePDC
+import com.mojang.brigadier.arguments.StringArgumentType
+import io.papermc.paper.command.brigadier.argument.ArgumentTypes
 import org.bukkit.Bukkit
-import org.bukkit.OfflinePlayer
-import org.bukkit.command.Command
-import org.bukkit.command.CommandSender
-import org.bukkit.command.TabCompleter
 import org.bukkit.entity.ItemDisplay
-import org.bukkit.entity.Player
 
-class EternalCommands : IdofrontCommandExecutor(), TabCompleter {
-
-    override val commands = commands(eternal.plugin) {
-        command("eternalfortune", "eternal", "ef") {
-            "reload" {
-                action {
-                    eternal.plugin.registerEternalContext()
-                    sender.success("EternalFortune configs have been reloaded!")
-                }
-            }
-            "graves" {
-                "place" {
-                    playerAction {
-                        player.spawnGrave(player.inventory.storageContents.toList().filterNotNull(), 0)
+object EternalCommands {
+    fun registerCommands() {
+        eternal.plugin.commands {
+            ("eternalfortune" / "ef") {
+                "reload" {
+                    executes {
+                        eternal.plugin.registerEternalContext()
+                        sender.success("EternalFortune configs have been reloaded!")
                     }
                 }
-                "text" {
-                    playerAction {
-                        player.getNearbyEntities(10.0, 10.0, 10.0).filterIsInstance<ItemDisplay>().filter { it.isGrave }.forEach {
-                            player.sendGraveTextDisplay(it)
+                "graves" {
+                    "place" {
+                        playerExecutes {
+                            player.spawnGrave(player.inventory.storageContents.toList().filterNotNull(), 0)
+                        }
+                        val player by ArgumentTypes.player().suggests { suggest(Bukkit.getOnlinePlayers().map { it.name }) }
+                        executes {
+                            val player = player()!!.resolve(context.source).first()!!
+                            player.spawnGrave(player.inventory.storageContents.toList().filterNotNull(), 0)
                         }
                     }
-                }
-                "remove" {
-                    val player: OfflinePlayer by offlinePlayerArg()
-                    action {
-                        val playerGraves = when {
-                            player.isOnline -> player.player!!.playerGraves
-                            else -> player.getOfflinePDC()?.decode<PlayerGraves>()
-                        } ?: return@action sender.error("${player.name} has no graves")
+                    "text" {
+                        playerExecutes {
+                            player.getNearbyEntities(10.0, 10.0, 10.0).filterIsInstance<ItemDisplay>().filter { it.isGrave }.forEach {
+                                player.sendGraveTextDisplay(it)
+                            }
+                        }
+                        val player by ArgumentTypes.player().suggests { suggest(Bukkit.getOnlinePlayers().map { it.name }) }
+                        executes {
+                            val player = player()!!.resolve(context.source).first()!!
+                            player.getNearbyEntities(10.0, 10.0, 10.0).filterIsInstance<ItemDisplay>().filter { it.isGrave }.forEach {
+                                player.sendGraveTextDisplay(it)
+                            }
+                        }
+                    }
+                    "remove" {
+                        val player by StringArgumentType.word()
+                        executes {
+                            val offlinePlayer = Bukkit.getOfflinePlayer(player())!!
+                            val playerGraves = when {
+                                offlinePlayer.isOnline -> offlinePlayer.player!!.playerGraves
+                                else -> offlinePlayer.getOfflinePDC()?.decode<PlayerGraves>()
+                            } ?: return@executes sender.error("${offlinePlayer.name} has no graves")
 
-                        playerGraves.graveUuids.zip(playerGraves.graveLocations).toSet().forEach { (uuid, loc) ->
-                            loc.ensureWorldIsLoaded()
-                            loc.world.getChunkAtAsync(loc).thenAccept { c ->
-                                val graveEntity = c.entities.find { it.uniqueId == uuid } as? ItemDisplay
-                                when {
-                                    graveEntity == null ->
-                                        if (sender == player) sender.error("Could not find grave entity")
-                                        else sender.error("Could not find grave entity for ${player.name}")
-                                    graveEntity.grave?.graveContent?.isNotEmpty() == true ->
-                                        for (item in graveEntity.grave!!.graveContent)
-                                            graveEntity.world.dropItemNaturally(graveEntity.location, item)
+                            playerGraves.graveUuids.zip(playerGraves.graveLocations).toSet().forEach { (uuid, loc) ->
+                                loc.ensureWorldIsLoaded()
+                                loc.world.getChunkAtAsync(loc).thenAccept { c ->
+                                    val graveEntity = c.entities.find { it.uniqueId == uuid } as? ItemDisplay
+                                    when {
+                                        graveEntity == null ->
+                                            if (executor?.uniqueId == offlinePlayer.uniqueId) sender.error("Could not find grave entity")
+                                            else sender.error("Could not find grave entity for ${offlinePlayer.name}")
+                                        graveEntity.grave?.graveContent?.isNotEmpty() == true ->
+                                            for (item in graveEntity.grave!!.graveContent)
+                                                graveEntity.world.dropItemNaturally(graveEntity.location, item)
+                                    }
+
+                                    graveEntity?.remove()
+
+                                    // Remove the grave from the player's data
+                                    offlinePlayer.removeGraveFromPlayerGraves(uuid, loc)
                                 }
-
-                                graveEntity?.remove()
-
-                                // Remove the grave from the player's data
-                                player.removeGraveFromPlayerGraves(uuid, loc)
                             }
                         }
                     }
                 }
             }
         }
-    }
-
-    override fun onTabComplete(
-        sender: CommandSender,
-        command: Command,
-        label: String,
-        args: Array<out String>
-    ): List<String> {
-
-        return if (command.name == "eternalfortune") when (args.size) {
-            1 -> listOf("graves", "reload").filter { it.startsWith(args[0]) }
-            2 -> when {
-                args[0] == "graves" -> listOf("place", "remove", "text").filter { it.startsWith(args[1]) }
-                else -> emptyList()
-            }
-            3 -> when (args[1]) {
-                "remove" -> Bukkit.getOnlinePlayers().map { it.name }.filter { it.startsWith(args[2]) }
-                else -> emptyList()
-            }
-            else -> emptyList()
-        } else emptyList()
     }
 }

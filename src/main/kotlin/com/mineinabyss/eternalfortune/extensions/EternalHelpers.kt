@@ -17,6 +17,7 @@ import com.mineinabyss.geary.papermc.datastore.decode
 import com.mineinabyss.geary.papermc.datastore.encode
 import com.mineinabyss.geary.papermc.tracking.entities.toGeary
 import com.mineinabyss.geary.papermc.tracking.entities.toGearyOrNull
+import com.mineinabyss.geary.serialization.setPersisting
 import com.mineinabyss.idofront.entities.toOfflinePlayer
 import com.mineinabyss.idofront.messaging.error
 import com.mineinabyss.idofront.messaging.logError
@@ -26,7 +27,6 @@ import com.mineinabyss.idofront.nms.nbt.WrappedPDC
 import com.mineinabyss.idofront.nms.nbt.getOfflinePDC
 import com.mineinabyss.idofront.nms.nbt.saveOfflinePDC
 import com.mineinabyss.idofront.textcomponents.miniMsg
-import com.mineinabyss.protocolburrito.dsl.sendTo
 import dev.triumphteam.gui.guis.Gui
 import dev.triumphteam.gui.guis.StorageGui
 import io.papermc.paper.adventure.PaperAdventure
@@ -48,7 +48,7 @@ import net.minecraft.world.entity.Entity
 import net.minecraft.world.entity.EntityType
 import net.minecraft.world.phys.Vec3
 import org.bukkit.*
-import org.bukkit.craftbukkit.v1_20_R3.CraftServer
+import org.bukkit.craftbukkit.entity.CraftPlayer
 import org.bukkit.entity.ItemDisplay
 import org.bukkit.entity.Player
 import org.bukkit.inventory.ItemStack
@@ -131,7 +131,7 @@ object EternalHelpers {
                         when {
                             owner.isOnline -> owner.player!!.warn(eternal.messages.GRAVE_EMPTIED)
                             else -> {
-                                val pdc = owner.getOfflinePDC() ?: return@setCloseGuiAction logError("Could not get PDC for ${owner.name}")
+                                val pdc = owner.getOfflinePDC() ?: return@setCloseGuiAction eternal.logger.e("Could not get PDC for ${owner.name}")
                                 val messages = pdc.decode<GraveOfflineNotice>() ?: GraveOfflineNotice(emptyList())
                                 pdc.encode(messages.copy(messages = messages.messages + eternal.messages.GRAVE_EMPTIED))
                                 owner.saveOfflinePDC(pdc)
@@ -184,7 +184,7 @@ fun Player.sendGraveTextDisplay(baseEntity: ItemDisplay) {
         EntityType.TEXT_DISPLAY, 0, Vec3.ZERO, 0.0
     )
 
-    PacketContainer.fromPacket(textDisplayPacket).sendTo(this)
+    (this as CraftPlayer).handle.connection.send(textDisplayPacket)
     eternal.plugin.launch(eternal.plugin.asyncDispatcher) {
         do {
             sendGraveText(baseEntity, entityId)
@@ -218,16 +218,14 @@ fun Player.sendGraveText(baseEntity: ItemDisplay, entityId: Int) {
     bitmask = bitmask or 0x01 // Set bit 0 (Has shadow)
     bitmask = bitmask or (0 and 0x0F shl 3) // Set alignment to CENTER (0)
 
-    PacketContainer.fromPacket(
-        ClientboundSetEntityDataPacket(
-            entityId, listOf(
-                SynchedEntityData.DataValue(15, EntityDataSerializers.BYTE, 1), // Billboard
-                SynchedEntityData.DataValue(23, EntityDataSerializers.COMPONENT, text),
-                SynchedEntityData.DataValue(25, EntityDataSerializers.INT, Color.fromARGB(0,0,0,0).asARGB()), // Transparent background
-                SynchedEntityData.DataValue(27, EntityDataSerializers.BYTE, bitmask.toByte())
-            )
+    (this as CraftPlayer).handle.connection.send(ClientboundSetEntityDataPacket(
+        entityId, listOf(
+            SynchedEntityData.DataValue(15, EntityDataSerializers.BYTE, 1), // Billboard
+            SynchedEntityData.DataValue(23, EntityDataSerializers.COMPONENT, text),
+            SynchedEntityData.DataValue(25, EntityDataSerializers.INT, Color.fromARGB(0,0,0,0).asARGB()), // Transparent background
+            SynchedEntityData.DataValue(27, EntityDataSerializers.BYTE, bitmask.toByte())
         )
-    ).sendTo(this@sendGraveText)
+    ))
 }
 
 fun removeGraveTextDisplay(baseEntity: ItemDisplay) =
@@ -236,7 +234,7 @@ fun removeGraveTextDisplay(baseEntity: ItemDisplay) =
 fun removeGraveTextDisplay(entityId: Int) {
     textDisplayIDMap.entries.removeIf { it.value == entityId }
     val destroyPacket = ClientboundRemoveEntitiesPacket(IntList.of(entityId))
-    Bukkit.getOnlinePlayers().forEach { PacketContainer.fromPacket(destroyPacket).sendTo(it) }
+    Bukkit.getOnlinePlayers().filterIsInstance<CraftPlayer>().forEach { it.handle.connection.send(destroyPacket) }
 }
 
 fun OfflinePlayer.removeGraveFromPlayerGraves(baseEntity: ItemDisplay) {

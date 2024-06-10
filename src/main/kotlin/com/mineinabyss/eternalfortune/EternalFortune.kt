@@ -11,7 +11,9 @@ import com.mineinabyss.geary.autoscan.autoscan
 import com.mineinabyss.geary.modules.geary
 import com.mineinabyss.idofront.config.config
 import com.mineinabyss.idofront.di.DI
+import com.mineinabyss.idofront.messaging.ComponentLogger
 import com.mineinabyss.idofront.messaging.logError
+import com.mineinabyss.idofront.messaging.observeLogger
 import com.mineinabyss.idofront.plugin.listeners
 import org.bukkit.Bukkit
 import org.bukkit.plugin.java.JavaPlugin
@@ -28,14 +30,14 @@ class EternalFortune : JavaPlugin() {
     override fun onEnable() {
         registerEternalContext()
 
-        EternalCommands()
+        EternalCommands.registerCommands()
 
         listeners(GraveListener(), PlayerListener())
 
         geary {
             on(GearyPhase.ENABLE) {
                 if (!eternal.config.graveFurniture.isBlockyFurniture) {
-                    logError("The graveFurniture config option must be a BlockyFurniture!")
+                    eternal.logger.e("The graveFurniture config option must be a BlockyFurniture!")
                     Bukkit.getPluginManager().disablePlugin(this@EternalFortune)
                 }
             }
@@ -52,6 +54,7 @@ class EternalFortune : JavaPlugin() {
             override val plugin = this@EternalFortune
             override val config: EternalConfig by config("config", dataFolder.toPath(), EternalConfig())
             override val messages: EternalMessages by config("messages", dataFolder.toPath(), EternalMessages())
+            override val logger: ComponentLogger by plugin.observeLogger()
         })
     }
 }
