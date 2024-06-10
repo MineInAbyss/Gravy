@@ -6,7 +6,7 @@ import com.mineinabyss.eternalfortune.extensions.removeGraveTextDisplay
 import com.mineinabyss.eternalfortune.extensions.textDisplayIDMap
 import com.mineinabyss.eternalfortune.listeners.GraveListener
 import com.mineinabyss.eternalfortune.listeners.PlayerListener
-import com.mineinabyss.eternalfortune.systems.graveTextSetter
+import com.mineinabyss.eternalfortune.systems.handleGravePackets
 import com.mineinabyss.geary.addons.GearyPhase
 import com.mineinabyss.geary.autoscan.autoscan
 import com.mineinabyss.geary.modules.geary
@@ -15,7 +15,10 @@ import com.mineinabyss.idofront.di.DI
 import com.mineinabyss.idofront.messaging.ComponentLogger
 import com.mineinabyss.idofront.messaging.logError
 import com.mineinabyss.idofront.messaging.observeLogger
+import com.mineinabyss.idofront.nms.interceptClientbound
 import com.mineinabyss.idofront.plugin.listeners
+import net.minecraft.network.protocol.game.ClientboundAddEntityPacket
+import net.minecraft.network.protocol.game.ClientboundBundlePacket
 import org.bukkit.Bukkit
 import org.bukkit.plugin.java.JavaPlugin
 
@@ -33,10 +36,14 @@ class EternalFortune : JavaPlugin() {
 
         EternalCommands.registerCommands()
 
-        listeners(GraveListener(), PlayerListener())
+        listeners(GraveListener(), /*PlayerListener()*/)
+
+        interceptClientbound { packet, player ->
+            player?.let { handleGravePackets(packet, it) } ?: packet
+        }
 
         geary.run {
-            graveTextSetter()
+            //graveTextSetter()
         }
         geary {
             on(GearyPhase.ENABLE) {
@@ -49,7 +56,7 @@ class EternalFortune : JavaPlugin() {
     }
 
     override fun onDisable() {
-        textDisplayIDMap.values.forEach(::removeGraveTextDisplay)
+        //textDisplayIDMap.values.forEach(::removeGraveTextDisplay)
     }
 
     fun registerEternalContext() {

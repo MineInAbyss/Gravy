@@ -31,8 +31,7 @@ import dev.triumphteam.gui.guis.Gui
 import dev.triumphteam.gui.guis.StorageGui
 import io.papermc.paper.adventure.PaperAdventure
 import it.unimi.dsi.fastutil.ints.IntList
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.*
 import net.kyori.adventure.text.minimessage.tag.Tag
 import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver
 import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer
@@ -89,7 +88,6 @@ object EternalHelpers {
         grave.toGearyOrNull()?.setPersisting(Grave(uniqueId, drops, droppedExp, protectionDate, expirationDate))
             ?: run { this.error(eternal.messages.FAILED_FILLING_GRAVE); BlockyFurnitures.removeFurniture(grave); return null }
         this.success("Grave spawned at ${graveLocation.blockX} ${graveLocation.blockY} ${graveLocation.blockZ}!")
-        grave.sendGraveTextToNearbyPlayers()
         return grave
     }
 
@@ -171,11 +169,7 @@ fun Location.ensureWorldIsLoaded() {
 }
 
 val textDisplayIDMap = mutableMapOf<UUID, Int>()
-
-fun ItemDisplay.sendGraveTextToNearbyPlayers() {
-    world.getNearbyPlayers(location, 16.0).forEach { it.sendGraveTextDisplay(this) }
-}
-fun Player.sendGraveTextDisplay(baseEntity: ItemDisplay) {
+fun Player.sendGraveTextDisplay(baseEntity: ItemDisplay, grave: Grave) {
     val entityId = textDisplayIDMap.computeIfAbsent(baseEntity.uniqueId) { Entity.nextEntityId() }
     val loc = baseEntity.location.toBlockCenterLocation().add(0.0, eternal.config.textDisplayOffset, 0.0)
     val textDisplayPacket = ClientboundAddEntityPacket(
@@ -187,10 +181,11 @@ fun Player.sendGraveTextDisplay(baseEntity: ItemDisplay) {
     (this as CraftPlayer).handle.connection.send(textDisplayPacket)
     eternal.plugin.launch(eternal.plugin.asyncDispatcher) {
         do {
-            sendGraveText(baseEntity)
+            sendGraveText(baseEntity, grave)
             delay(1.seconds)
-            if (baseEntity.grave?.isExpired() == true) break
+            if (grave.isExpired()) break
         } while (!baseEntity.isDead)
+        this@sendGraveTextDisplay.removeGraveTextDisplay(baseEntity)
         withContext(eternal.plugin.minecraftDispatcher) {
             baseEntity.remove()
         }
@@ -205,11 +200,7 @@ fun formatDuration(duration: Duration) = duration.toComponents { days, hours, mi
 fun convertTime(duration: Long) =
     formatDuration(Duration.convert((maxOf(duration - currentTime(), 0)).toDouble(), DurationUnit.SECONDS, DurationUnit.SECONDS).seconds)
 
-fun Player.sendGraveText(baseEntity: ItemDisplay) {
-    baseEntity.grave?.let { this.sendGraveText(baseEntity, it) }
-}
-
-fun Player.sendGraveText(baseEntity: ItemDisplay, grave: Grave) {
+private fun Player.sendGraveText(baseEntity: ItemDisplay, grave: Grave) {
     val entityId = textDisplayIDMap.computeIfAbsent(baseEntity.uniqueId) { Entity.nextEntityId() }
     val tagResolver = TagResolver.resolver(
         TagResolver.resolver("player", Tag.inserting((grave.graveOwner.toOfflinePlayer().name ?: "").miniMsg())),
@@ -233,18 +224,9 @@ fun Player.sendGraveText(baseEntity: ItemDisplay, grave: Grave) {
     ))
 }
 
-fun removeGraveTextDisplay(baseEntity: ItemDisplay) =
-    textDisplayIDMap.remove(baseEntity.uniqueId)?.let { removeGraveTextDisplay(it) }
-
-fun removeGraveTextDisplay(entityId: Int) {
-    textDisplayIDMap.entries.removeIf { it.value == entityId }
-    val destroyPacket = ClientboundRemoveEntitiesPacket(IntList.of(entityId))
-    Bukkit.getOnlinePlayers().filterIsInstance<CraftPlayer>().forEach { it.handle.connection.send(destroyPacket) }
-}
-
 fun Player.removeGraveTextDisplay(baseEntity: ItemDisplay) {
-    val entityId = textDisplayIDMap.computeIfAbsent(baseEntity.uniqueId) { Entity.nextEntityId() }
-    (this as CraftPlayer).handle.connection.send(ClientboundRemoveEntitiesPacket(IntList.of(entityId)))
+    val entityId = textDisplayIDMap[baseEntity.uniqueId] ?: return
+    (this as CraftPlayer).handle.connection.send(ClientboundRemoveEntitiesPacket(entityId))
 }
 
 fun OfflinePlayer.removeGraveFromPlayerGraves(baseEntity: ItemDisplay) {

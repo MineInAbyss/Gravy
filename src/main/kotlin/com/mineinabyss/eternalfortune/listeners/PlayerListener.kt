@@ -40,34 +40,4 @@ class PlayerListener : Listener {
             }
         }
     }
-
-    @EventHandler
-    fun PlayerJoinEvent.onJoinWithNotice() {
-        eternal.plugin.launch {
-            delay(1.seconds)
-            val notice = player.toGeary().get<GraveOfflineNotice>() ?: return@launch
-            for (message in notice.messages) player.sendMessage(message.miniMsg())
-            player.toGeary().remove<GraveOfflineNotice>()
-        }
-    }
-
-    @EventHandler
-    fun PlayerChunkLoadEvent.onPlayerChunkLoad() {
-        chunk.entities.filterIsInstance<ItemDisplay>().forEach {
-            player.sendGraveText(it)
-        }
-    }
-
-    @EventHandler
-    fun PlayerChunkUnloadEvent.onPlayerChunkUnload() {
-        chunk.entities.filterIsInstance<ItemDisplay>().forEach {
-            player.removeGraveTextDisplay(it)
-        }
-    }
-
-    /*@EventHandler
-    fun GearyEntityAddToWorldEvent.onGraveLoad() {
-        val itemDisplay = entity as? ItemDisplay ?: return
-        if (itemDisplay.isGrave) itemDisplay.sendGraveTextToNearbyPlayers()
-    }*/
 }

@@ -35,16 +35,36 @@ object EternalCommands {
                         }
                     }
                     "text" {
-                        playerExecutes {
-                            player.getNearbyEntities(10.0, 10.0, 10.0).filterIsInstance<ItemDisplay>().filter { it.isGrave }.forEach {
-                                player.sendGraveTextDisplay(it)
+                        "send" {
+                            playerExecutes {
+                                player.getNearbyEntities(10.0, 10.0, 10.0).filterIsInstance<ItemDisplay>().forEach {
+                                    player.sendGraveTextDisplay(it, it.grave ?: return@forEach)
+                                }
+                                sender.success("Sent Grave TextDisplays!")
+                            }
+                            val player by ArgumentTypes.player().suggests { suggest(Bukkit.getOnlinePlayers().map { it.name }) }
+                            executes {
+                                val player = player()!!.resolve(context.source).first()!!
+                                player.getNearbyEntities(16.0, 16.0, 16.0).filterIsInstance<ItemDisplay>().forEach {
+                                    player.sendGraveTextDisplay(it, it.grave ?: return@forEach)
+                                }
+                                sender.success("Sent Grave TextDisplays to ${player.name}")
                             }
                         }
-                        val player by ArgumentTypes.player().suggests { suggest(Bukkit.getOnlinePlayers().map { it.name }) }
-                        executes {
-                            val player = player()!!.resolve(context.source).first()!!
-                            player.getNearbyEntities(10.0, 10.0, 10.0).filterIsInstance<ItemDisplay>().filter { it.isGrave }.forEach {
-                                player.sendGraveTextDisplay(it)
+                        "remove" {
+                            playerExecutes {
+                                player.getNearbyEntities(10.0, 10.0, 10.0).filterIsInstance<ItemDisplay>().forEach {
+                                    player.removeGraveTextDisplay(it)
+                                }
+                                sender.success("Removed Grave TextDisplays!")
+                            }
+                            val player by ArgumentTypes.player().suggests { suggest(Bukkit.getOnlinePlayers().map { it.name }) }
+                            executes {
+                                val player = player()!!.resolve(context.source).first()!!
+                                player.getNearbyEntities(16.0, 16.0, 16.0).filterIsInstance<ItemDisplay>().forEach {
+                                    player.removeGraveTextDisplay(it)
+                                }
+                                sender.success("Removed Grave TextDisplays to ${player.name}")
                             }
                         }
                     }

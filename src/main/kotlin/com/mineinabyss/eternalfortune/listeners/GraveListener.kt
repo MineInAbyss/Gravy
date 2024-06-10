@@ -56,10 +56,7 @@ class GraveListener : Listener {
     fun GearyEntityAddToWorldEvent.onLoadExpiredGrave() {
         val itemDisplay = entity as? ItemDisplay ?: return
         val grave = itemDisplay.grave ?: return
-        when {
-            !grave.isExpired() -> itemDisplay.sendGraveTextToNearbyPlayers()
-            else -> itemDisplay.remove()
-        }
+        if (grave.isExpired()) itemDisplay.remove()
     }
 
     /**
@@ -81,7 +78,6 @@ class GraveListener : Listener {
         graveInvMap.remove(entity.uniqueId)
 
         grave.graveOwner.toOfflinePlayer().removeGraveFromPlayerGraves(itemDisplay)
-        removeGraveTextDisplay(itemDisplay)
         BlockyFurnitures.removeFurniture(itemDisplay)
     }
 }
