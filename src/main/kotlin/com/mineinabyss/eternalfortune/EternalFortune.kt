@@ -17,9 +17,11 @@ import com.mineinabyss.idofront.messaging.logError
 import com.mineinabyss.idofront.messaging.observeLogger
 import com.mineinabyss.idofront.nms.interceptClientbound
 import com.mineinabyss.idofront.plugin.listeners
+import net.minecraft.network.protocol.Packet
 import net.minecraft.network.protocol.game.ClientboundAddEntityPacket
 import net.minecraft.network.protocol.game.ClientboundBundlePacket
 import org.bukkit.Bukkit
+import org.bukkit.entity.Player
 import org.bukkit.plugin.java.JavaPlugin
 
 class EternalFortune : JavaPlugin() {
@@ -38,7 +40,7 @@ class EternalFortune : JavaPlugin() {
 
         listeners(GraveListener(), /*PlayerListener()*/)
 
-        interceptClientbound { packet, player ->
+        interceptClientbound { packet: Packet<*>, player: Player? ->
             player?.let { handleGravePackets(packet, it) } ?: packet
         }
 
